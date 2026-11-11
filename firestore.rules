@@ -1,0 +1,257 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Entity validation helpers
+    function isValidUserProfile(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             data.displayName is string && data.displayName.size() > 0 && data.displayName.size() <= 100 &&
+             data.email is string && data.email.size() <= 150 &&
+             (!('photoUrl' in data) || data.photoUrl == null || (data.photoUrl is string && data.photoUrl.size() <= 1000)) &&
+             (!('isPro' in data) || data.isPro is bool) &&
+             (!('monthlyBudget' in data) || data.monthlyBudget is number) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
+    function isValidTask(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+             (!('description' in data) || (data.description is string && data.description.size() <= 2000)) &&
+             (!('category' in data) || (data.category is string && data.category.size() <= 50)) &&
+             (!('priority' in data) || data.priority in ['LOW', 'MEDIUM', 'HIGH', 'URGENT']) &&
+             (!('dueDate' in data) || (data.dueDate is string && data.dueDate.size() <= 20)) &&
+             (!('dueTime' in data) || (data.dueTime is string && data.dueTime.size() <= 10)) &&
+             data.isCompleted is bool &&
+             (!('reminderEnabled' in data) || data.reminderEnabled is bool) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
+    function isValidTransaction(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+             data.amount is number &&
+             data.type in ['INCOME', 'EXPENSE', 'DEBT', 'RECEIVABLE'] &&
+             data.category is string && data.category.size() <= 50 &&
+             (!('date' in data) || (data.date is string && data.date.size() <= 20)) &&
+             (!('note' in data) || (data.note is string && data.note.size() <= 1000)) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
+    function isValidNote(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+             data.content is string && data.content.size() <= 20000 &&
+             (!('category' in data) || (data.category is string && data.category.size() <= 50)) &&
+             (!('isFavorite' in data) || data.isFavorite is bool) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
+    function isValidJob(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             data.company is string && data.company.size() > 0 && data.company.size() <= 100 &&
+             data.position is string && data.position.size() > 0 && data.position.size() <= 100 &&
+             data.status in ['APPLIED', 'INTERVIEW', 'OFFER', 'REJECTED', 'SAVED'] &&
+             (!('appliedDate' in data) || (data.appliedDate is string && data.appliedDate.size() <= 20)) &&
+             (!('interviewDate' in data) || (data.interviewDate is string && data.interviewDate.size() <= 50)) &&
+             (!('salaryExpectation' in data) || (data.salaryExpectation is string && data.salaryExpectation.size() <= 50)) &&
+             (!('notes' in data) || (data.notes is string && data.notes.size() <= 5000)) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
+    function isValidDocument(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 200 &&
+             data.category is string && data.category.size() <= 50 &&
+             (!('ocrText' in data) || (data.ocrText is string && data.ocrText.size() <= 50000)) &&
+             (!('notes' in data) || (data.notes is string && data.notes.size() <= 5000)) &&
+             (!('isPrivate' in data) || data.isPrivate is bool) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
+    function isValidChatMessage(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             data.role in ['user', 'model'] &&
+             data.content is string && data.content.size() <= 10000 &&
+             (!('suggestedAction' in data) || (data.suggestedAction is string && data.suggestedAction.size() <= 500)) &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    // Match users root document
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false; // User profiles cannot be listed publicly
+
+      allow create: if isOwner(userId) &&
+                       incoming().userId == userId &&
+                       incoming().keys().hasAll(['userId', 'displayName', 'email', 'createdAt']) &&
+                       incoming().keys().hasOnly(['userId', 'displayName', 'email', 'photoUrl', 'isPro', 'monthlyBudget', 'createdAt', 'updatedAt']) &&
+                       isValidUserProfile(incoming());
+
+      allow update: if isOwner(userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'email', 'photoUrl', 'isPro', 'monthlyBudget', 'updatedAt']) &&
+                       isValidUserProfile(incoming());
+
+      allow delete: if isOwner(userId);
+
+      // Tasks subcollection
+      match /tasks/{taskId} {
+        allow get: if isOwner(userId) && isValidId(taskId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(taskId) &&
+                         incoming().userId == userId &&
+                         incoming().keys().hasAll(['userId', 'title', 'isCompleted', 'createdAt']) &&
+                         incoming().keys().hasOnly(['userId', 'title', 'description', 'category', 'priority', 'dueDate', 'dueTime', 'isCompleted', 'reminderEnabled', 'createdAt', 'updatedAt']) &&
+                         isValidTask(incoming());
+
+        allow update: if isOwner(userId) &&
+                         isValidId(taskId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'category', 'priority', 'dueDate', 'dueTime', 'isCompleted', 'reminderEnabled', 'updatedAt']) &&
+                         isValidTask(incoming());
+
+        allow delete: if isOwner(userId) && isValidId(taskId);
+      }
+
+      // Transactions subcollection
+      match /transactions/{transactionId} {
+        allow get: if isOwner(userId) && isValidId(transactionId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(transactionId) &&
+                         incoming().userId == userId &&
+                         incoming().keys().hasAll(['userId', 'title', 'amount', 'type', 'category', 'createdAt']) &&
+                         incoming().keys().hasOnly(['userId', 'title', 'amount', 'type', 'category', 'date', 'note', 'createdAt', 'updatedAt']) &&
+                         isValidTransaction(incoming());
+
+        allow update: if isOwner(userId) &&
+                         isValidId(transactionId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['title', 'amount', 'type', 'category', 'date', 'note', 'updatedAt']) &&
+                         isValidTransaction(incoming());
+
+        allow delete: if isOwner(userId) && isValidId(transactionId);
+      }
+
+      // Notes subcollection
+      match /notes/{noteId} {
+        allow get: if isOwner(userId) && isValidId(noteId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(noteId) &&
+                         incoming().userId == userId &&
+                         incoming().keys().hasAll(['userId', 'title', 'content', 'createdAt']) &&
+                         incoming().keys().hasOnly(['userId', 'title', 'content', 'category', 'isFavorite', 'createdAt', 'updatedAt']) &&
+                         isValidNote(incoming());
+
+        allow update: if isOwner(userId) &&
+                         isValidId(noteId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['title', 'content', 'category', 'isFavorite', 'updatedAt']) &&
+                         isValidNote(incoming());
+
+        allow delete: if isOwner(userId) && isValidId(noteId);
+      }
+
+      // Job applications subcollection
+      match /jobs/{jobId} {
+        allow get: if isOwner(userId) && isValidId(jobId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(jobId) &&
+                         incoming().userId == userId &&
+                         incoming().keys().hasAll(['userId', 'company', 'position', 'status', 'createdAt']) &&
+                         incoming().keys().hasOnly(['userId', 'company', 'position', 'status', 'appliedDate', 'interviewDate', 'salaryExpectation', 'notes', 'createdAt', 'updatedAt']) &&
+                         isValidJob(incoming());
+
+        allow update: if isOwner(userId) &&
+                         isValidId(jobId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['company', 'position', 'status', 'appliedDate', 'interviewDate', 'salaryExpectation', 'notes', 'updatedAt']) &&
+                         isValidJob(incoming());
+
+        allow delete: if isOwner(userId) && isValidId(jobId);
+      }
+
+      // User documents subcollection
+      match /documents/{documentId} {
+        allow get: if isOwner(userId) && isValidId(documentId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(documentId) &&
+                         incoming().userId == userId &&
+                         incoming().keys().hasAll(['userId', 'title', 'category', 'createdAt']) &&
+                         incoming().keys().hasOnly(['userId', 'title', 'category', 'ocrText', 'notes', 'isPrivate', 'createdAt', 'updatedAt']) &&
+                         isValidDocument(incoming());
+
+        allow update: if isOwner(userId) &&
+                         isValidId(documentId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['title', 'category', 'ocrText', 'notes', 'isPrivate', 'updatedAt']) &&
+                         isValidDocument(incoming());
+
+        allow delete: if isOwner(userId) && isValidId(documentId);
+      }
+
+      // AI chat messages subcollection
+      match /chat_messages/{messageId} {
+        allow get: if isOwner(userId) && isValidId(messageId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(messageId) &&
+                         incoming().userId == userId &&
+                         incoming().keys().hasAll(['userId', 'role', 'content', 'createdAt']) &&
+                         incoming().keys().hasOnly(['userId', 'role', 'content', 'suggestedAction', 'createdAt']) &&
+                         isValidChatMessage(incoming());
+
+        allow update: if false; // Chat history messages are append-only
+        allow delete: if isOwner(userId) && isValidId(messageId);
+      }
+    }
+  }
+}

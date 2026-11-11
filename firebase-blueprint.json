@@ -1,0 +1,148 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile information and preferences",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Unique user ID matching Auth UID" },
+        "displayName": { "type": "string", "description": "User display name" },
+        "email": { "type": "string", "description": "User email address" },
+        "photoUrl": { "type": "string", "description": "Optional profile photo URL" },
+        "isPro": { "type": "boolean", "description": "Whether user has an active Pro subscription" },
+        "monthlyBudget": { "type": "number", "description": "Target monthly budget in TRY" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp via serverTimestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Last update timestamp via serverTimestamp" }
+      },
+      "required": ["userId", "displayName", "email", "createdAt"]
+    },
+    "TaskItem": {
+      "title": "TaskItem",
+      "description": "To-do task and schedule item",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Owner Auth UID" },
+        "title": { "type": "string", "description": "Task title" },
+        "description": { "type": "string", "description": "Detailed notes about the task" },
+        "category": { "type": "string", "description": "Task category (İş, Kişisel, Sağlık, vb.)" },
+        "priority": { "type": "string", "enum": ["LOW", "MEDIUM", "HIGH", "URGENT"], "description": "Task priority level" },
+        "dueDate": { "type": "string", "description": "Due date formatted as YYYY-MM-DD" },
+        "dueTime": { "type": "string", "description": "Due time formatted as HH:mm" },
+        "isCompleted": { "type": "boolean", "description": "Whether task is completed" },
+        "reminderEnabled": { "type": "boolean", "description": "Whether notification reminder is set" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp via serverTimestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Update timestamp via serverTimestamp" }
+      },
+      "required": ["userId", "title", "isCompleted", "createdAt"]
+    },
+    "TransactionItem": {
+      "title": "TransactionItem",
+      "description": "Income and expense financial record",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Owner Auth UID" },
+        "title": { "type": "string", "description": "Transaction title / description" },
+        "amount": { "type": "number", "description": "Monetary amount in TRY" },
+        "type": { "type": "string", "enum": ["INCOME", "EXPENSE", "DEBT", "RECEIVABLE"], "description": "Type of transaction" },
+        "category": { "type": "string", "description": "Category (Maaş, Market, Kira, Fatura, vb.)" },
+        "date": { "type": "string", "description": "Date formatted as YYYY-MM-DD" },
+        "note": { "type": "string", "description": "Additional notes" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp via serverTimestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Update timestamp via serverTimestamp" }
+      },
+      "required": ["userId", "title", "amount", "type", "category", "createdAt"]
+    },
+    "NoteItem": {
+      "title": "NoteItem",
+      "description": "Personal note or quick memo",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Owner Auth UID" },
+        "title": { "type": "string", "description": "Note title" },
+        "content": { "type": "string", "description": "Note body content" },
+        "category": { "type": "string", "description": "Note category / tag" },
+        "isFavorite": { "type": "boolean", "description": "Favorite status" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp via serverTimestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Update timestamp via serverTimestamp" }
+      },
+      "required": ["userId", "title", "content", "createdAt"]
+    },
+    "JobApplication": {
+      "title": "JobApplication",
+      "description": "Job application and career tracking record",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Owner Auth UID" },
+        "company": { "type": "string", "description": "Company name" },
+        "position": { "type": "string", "description": "Position / Role title" },
+        "status": { "type": "string", "enum": ["APPLIED", "INTERVIEW", "OFFER", "REJECTED", "SAVED"], "description": "Application status" },
+        "appliedDate": { "type": "string", "description": "Application date formatted as YYYY-MM-DD" },
+        "interviewDate": { "type": "string", "description": "Interview date/time if scheduled" },
+        "salaryExpectation": { "type": "string", "description": "Expected salary in TRY" },
+        "notes": { "type": "string", "description": "Interview prep notes and feedback" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp via serverTimestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Update timestamp via serverTimestamp" }
+      },
+      "required": ["userId", "company", "position", "status", "createdAt"]
+    },
+    "UserDocument": {
+      "title": "UserDocument",
+      "description": "Scanned or saved personal document record",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Owner Auth UID" },
+        "title": { "type": "string", "description": "Document title" },
+        "category": { "type": "string", "description": "Category (Kimlik, Fatura, Sözleşme, Sertifika, vb.)" },
+        "ocrText": { "type": "string", "description": "Extracted text or OCR notes" },
+        "notes": { "type": "string", "description": "User notes about the document" },
+        "isPrivate": { "type": "boolean", "description": "Encrypted / protected section flag" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp via serverTimestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Update timestamp via serverTimestamp" }
+      },
+      "required": ["userId", "title", "category", "createdAt"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "Conversation message with Gemini AI assistant",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Owner Auth UID" },
+        "role": { "type": "string", "enum": ["user", "model"], "description": "Message author role" },
+        "content": { "type": "string", "description": "Message text content" },
+        "suggestedAction": { "type": "string", "description": "Optional parsed action type (CREATE_TASK, CREATE_TRANSACTION, etc.)" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp via serverTimestamp" }
+      },
+      "required": ["userId", "role", "content", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "User profile document"
+    },
+    "/users/{userId}/tasks/{taskId}": {
+      "schema": { "$ref": "#/entities/TaskItem" },
+      "description": "Tasks subcollection for user"
+    },
+    "/users/{userId}/transactions/{transactionId}": {
+      "schema": { "$ref": "#/entities/TransactionItem" },
+      "description": "Financial income and expense records"
+    },
+    "/users/{userId}/notes/{noteId}": {
+      "schema": { "$ref": "#/entities/NoteItem" },
+      "description": "Personal notes subcollection"
+    },
+    "/users/{userId}/jobs/{jobId}": {
+      "schema": { "$ref": "#/entities/JobApplication" },
+      "description": "Career and job applications subcollection"
+    },
+    "/users/{userId}/documents/{documentId}": {
+      "schema": { "$ref": "#/entities/UserDocument" },
+      "description": "Personal document records subcollection"
+    },
+    "/users/{userId}/chat_messages/{messageId}": {
+      "schema": { "$ref": "#/entities/ChatMessage" },
+      "description": "Gemini AI chat history messages"
+    }
+  }
+}

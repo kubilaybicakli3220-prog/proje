@@ -1,0 +1,6 @@
+{
+  "name": "HAYATIM AI",
+  "description": "Akıllı Kişisel Yaşam Asistanı - Görevler, Planlama, Finans, Notlar ve Gemini AI Desteği",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

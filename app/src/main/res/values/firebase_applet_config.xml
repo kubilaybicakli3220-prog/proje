@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<resources>
+    <string name="firestore_database_id" translatable="false">ai-studio-android-hayatima-f2d9d5cc-1c78-434b-a822-e785d24314f4</string>
+    <string name="recaptcha_site_key" translatable="false">6Le9wxouAAAAAK4yMJmHJyAUe19O8YYwj_kQadyd</string>
+</resources>
