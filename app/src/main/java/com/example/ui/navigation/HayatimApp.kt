@@ -32,6 +32,8 @@ import com.example.ui.ai.AiChatScreen
 import com.example.ui.auth.AuthViewModel
 import com.example.ui.career.CareerScreen
 import com.example.ui.components.AddDocumentDialog
+import com.example.ui.components.AddGoalDialog
+import com.example.ui.components.AddHabitDialog
 import com.example.ui.components.AddJobDialog
 import com.example.ui.components.AddNoteDialog
 import com.example.ui.components.AddTaskDialog
@@ -46,10 +48,17 @@ import com.example.ui.theme.CyanAccent
 import com.example.ui.theme.NavyDark
 import com.example.ui.theme.NavySurface
 
+import androidx.compose.material.icons.filled.Apps
+import androidx.compose.material.icons.filled.Insights
+import com.example.ui.appcenter.AppCenterScreen
+import com.example.ui.intelligence.SmartLifeScreen
+
 enum class Screen(val title: String, val icon: ImageVector) {
     HOME("Ana Sayfa", Icons.Default.Home),
     AI("AI Asistan", Icons.Default.AutoAwesome),
     TASKS("Planlama", Icons.Default.CalendarMonth),
+    APP_CENTER("Uygulamalar", Icons.Default.Apps),
+    SMART_LIFE("Yaşam", Icons.Default.Insights),
     FINANCE("Finans", Icons.Default.Payments),
     PROFILE("Profil", Icons.Default.Person),
     NOTES("Notlar", Icons.Default.Home),
@@ -68,6 +77,8 @@ fun HayatimApp(
     val statusMessage by mainViewModel.statusMessage.collectAsState()
 
     var showAddTaskDialog by remember { mutableStateOf(false) }
+    var showAddHabitDialog by remember { mutableStateOf(false) }
+    var showAddGoalDialog by remember { mutableStateOf(false) }
     var showAddTransactionDialog by remember { mutableStateOf(false) }
     var showAddNoteDialog by remember { mutableStateOf(false) }
     var showAddJobDialog by remember { mutableStateOf(false) }
@@ -100,7 +111,7 @@ fun HayatimApp(
                     Screen.HOME,
                     Screen.AI,
                     Screen.TASKS,
-                    Screen.FINANCE,
+                    Screen.APP_CENTER,
                     Screen.PROFILE
                 )
                 mainNavItems.forEach { screen ->
@@ -143,6 +154,8 @@ fun HayatimApp(
                     onNavigateToNotes = { currentScreen = Screen.NOTES },
                     onNavigateToCareer = { currentScreen = Screen.CAREER },
                     onNavigateToDocuments = { currentScreen = Screen.DOCS },
+                    onNavigateToAppCenter = { currentScreen = Screen.APP_CENTER },
+                    onNavigateToSmartLife = { currentScreen = Screen.SMART_LIFE },
                     onOpenAddTaskDialog = { showAddTaskDialog = true },
                     onOpenAddTransactionDialog = { showAddTransactionDialog = true }
                 )
@@ -151,7 +164,15 @@ fun HayatimApp(
                 )
                 Screen.TASKS -> TasksScreen(
                     viewModel = mainViewModel,
-                    onOpenAddTaskDialog = { showAddTaskDialog = true }
+                    onOpenAddTaskDialog = { showAddTaskDialog = true },
+                    onOpenAddHabitDialog = { showAddHabitDialog = true },
+                    onOpenAddGoalDialog = { showAddGoalDialog = true }
+                )
+                Screen.APP_CENTER -> AppCenterScreen(
+                    viewModel = mainViewModel
+                )
+                Screen.SMART_LIFE -> SmartLifeScreen(
+                    viewModel = mainViewModel
                 )
                 Screen.FINANCE -> FinanceScreen(
                     viewModel = mainViewModel,
@@ -180,6 +201,24 @@ fun HayatimApp(
             onDismiss = { showAddTaskDialog = false },
             onConfirm = { title, desc, cat, priority, date, time, reminder ->
                 mainViewModel.addTask(title, desc, cat, priority, date, time, reminder)
+            }
+        )
+    }
+
+    if (showAddHabitDialog) {
+        AddHabitDialog(
+            onDismiss = { showAddHabitDialog = false },
+            onConfirm = { title, frequency, target ->
+                mainViewModel.addHabit(title, frequency, target)
+            }
+        )
+    }
+
+    if (showAddGoalDialog) {
+        AddGoalDialog(
+            onDismiss = { showAddGoalDialog = false },
+            onConfirm = { title, desc, targetDate, category ->
+                mainViewModel.addGoal(title, desc, targetDate, category)
             }
         )
     }

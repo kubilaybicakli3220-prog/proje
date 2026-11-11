@@ -2,7 +2,11 @@ package com.example.data.repository
 
 import android.content.Context
 import com.example.R
+import com.example.data.model.AgentActionLog
+import com.example.data.model.AiSettings
 import com.example.data.model.ChatMessage
+import com.example.data.model.GoalItem
+import com.example.data.model.HabitItem
 import com.example.data.model.JobApplication
 import com.example.data.model.NoteItem
 import com.example.data.model.TaskItem
@@ -424,11 +428,217 @@ class HayatimRepository(private val db: FirebaseFirestore) {
         }
     }
 
+    // ==================== HABITS ====================
+    fun observeHabits(): Flow<List<HabitItem>> = flow {
+        val uid = requireUserId()
+        val path = "users/$uid/habits"
+        emitAll(
+            db.collection("users").document(uid).collection("habits")
+                .snapshots()
+                .map { snapshot -> snapshot.toObjects(HabitItem::class.java) }
+                .catch { error ->
+                    val firestoreError = generateSequence(error) { it.cause }
+                        .filterIsInstance<FirebaseFirestoreException>()
+                        .firstOrNull()
+                    if (firestoreError == null && error is CancellationException) throw error
+                    val ex = firestoreError ?: (error as? Exception)
+                    if (ex != null && auth.currentUser?.uid == uid) {
+                        handleFirestoreError(ex, OperationType.LIST, path)
+                    }
+                    throw error
+                }
+        )
+    }
+
+    suspend fun addHabit(habit: HabitItem): Result<String> = runCatching {
+        val uid = requireUserId()
+        val docRef = db.collection("users").document(uid).collection("habits").document()
+        try {
+            val payload = habit.copy(userId = uid).toMap()
+            docRef.set(payload).await()
+            docRef.id
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.CREATE, docRef.path)
+            throw e
+        }
+    }
+
+    suspend fun updateHabit(habit: HabitItem): Result<Unit> = runCatching {
+        val uid = requireUserId()
+        require(habit.id.isNotBlank()) { "Habit ID must not be blank" }
+        val docRef = db.collection("users").document(uid).collection("habits").document(habit.id)
+        try {
+            val payload = habit.copy(userId = uid).toMap()
+            docRef.set(payload).await()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.UPDATE, docRef.path)
+            throw e
+        }
+    }
+
+    suspend fun deleteHabit(habitId: String): Result<Unit> = runCatching {
+        val uid = requireUserId()
+        val docRef = db.collection("users").document(uid).collection("habits").document(habitId)
+        try {
+            docRef.delete().await()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.DELETE, docRef.path)
+            throw e
+        }
+    }
+
+    // ==================== GOALS ====================
+    fun observeGoals(): Flow<List<GoalItem>> = flow {
+        val uid = requireUserId()
+        val path = "users/$uid/goals"
+        emitAll(
+            db.collection("users").document(uid).collection("goals")
+                .snapshots()
+                .map { snapshot -> snapshot.toObjects(GoalItem::class.java) }
+                .catch { error ->
+                    val firestoreError = generateSequence(error) { it.cause }
+                        .filterIsInstance<FirebaseFirestoreException>()
+                        .firstOrNull()
+                    if (firestoreError == null && error is CancellationException) throw error
+                    val ex = firestoreError ?: (error as? Exception)
+                    if (ex != null && auth.currentUser?.uid == uid) {
+                        handleFirestoreError(ex, OperationType.LIST, path)
+                    }
+                    throw error
+                }
+        )
+    }
+
+    suspend fun addGoal(goal: GoalItem): Result<String> = runCatching {
+        val uid = requireUserId()
+        val docRef = db.collection("users").document(uid).collection("goals").document()
+        try {
+            val payload = goal.copy(userId = uid).toMap()
+            docRef.set(payload).await()
+            docRef.id
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.CREATE, docRef.path)
+            throw e
+        }
+    }
+
+    suspend fun updateGoal(goal: GoalItem): Result<Unit> = runCatching {
+        val uid = requireUserId()
+        require(goal.id.isNotBlank()) { "Goal ID must not be blank" }
+        val docRef = db.collection("users").document(uid).collection("goals").document(goal.id)
+        try {
+            val payload = goal.copy(userId = uid).toMap()
+            docRef.set(payload).await()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.UPDATE, docRef.path)
+            throw e
+        }
+    }
+
+    suspend fun deleteGoal(goalId: String): Result<Unit> = runCatching {
+        val uid = requireUserId()
+        val docRef = db.collection("users").document(uid).collection("goals").document(goalId)
+        try {
+            docRef.delete().await()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.DELETE, docRef.path)
+            throw e
+        }
+    }
+
+    // ==================== AI SETTINGS & PERSONA ====================
+    fun observeAiSettings(): Flow<AiSettings> = flow {
+        val uid = requireUserId()
+        val path = "users/$uid/settings/ai_settings"
+        emitAll(
+            db.collection("users").document(uid).collection("settings").document("ai_settings")
+                .snapshots()
+                .map { snapshot ->
+                    if (snapshot.exists()) snapshot.toObject(AiSettings::class.java) ?: AiSettings(userId = uid)
+                    else AiSettings(userId = uid)
+                }
+                .catch { error ->
+                    val firestoreError = generateSequence(error) { it.cause }
+                        .filterIsInstance<FirebaseFirestoreException>()
+                        .firstOrNull()
+                    if (firestoreError == null && error is CancellationException) throw error
+                    val ex = firestoreError ?: (error as? Exception)
+                    if (ex != null && auth.currentUser?.uid == uid) {
+                        handleFirestoreError(ex, OperationType.GET, path)
+                    }
+                    throw error
+                }
+        )
+    }
+
+    suspend fun saveAiSettings(settings: AiSettings): Result<Unit> = runCatching {
+        val uid = requireUserId()
+        val docRef = db.collection("users").document(uid).collection("settings").document("ai_settings")
+        try {
+            val payload = settings.copy(userId = uid).toMap()
+            docRef.set(payload).await()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.WRITE, docRef.path)
+            throw e
+        }
+    }
+
+    // ==================== AGENT ACTION LOGS ====================
+    fun observeAgentActionLogs(): Flow<List<AgentActionLog>> = flow {
+        val uid = requireUserId()
+        val path = "users/$uid/agent_actions"
+        emitAll(
+            db.collection("users").document(uid).collection("agent_actions")
+                .snapshots()
+                .map { snapshot -> snapshot.toObjects(AgentActionLog::class.java) }
+                .catch { error ->
+                    val firestoreError = generateSequence(error) { it.cause }
+                        .filterIsInstance<FirebaseFirestoreException>()
+                        .firstOrNull()
+                    if (firestoreError == null && error is CancellationException) throw error
+                    val ex = firestoreError ?: (error as? Exception)
+                    if (ex != null && auth.currentUser?.uid == uid) {
+                        handleFirestoreError(ex, OperationType.LIST, path)
+                    }
+                    throw error
+                }
+        )
+    }
+
+    suspend fun logAgentAction(action: AgentActionLog): Result<String> = runCatching {
+        val uid = requireUserId()
+        val docRef = db.collection("users").document(uid).collection("agent_actions").document()
+        try {
+            val payload = action.copy(userId = uid).toMap()
+            docRef.set(payload).await()
+            docRef.id
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            handleFirestoreError(e, OperationType.CREATE, docRef.path)
+            throw e
+        }
+    }
+
     // ==================== ACCOUNT DELETION (KVKK / Privacy) ====================
     suspend fun deleteUserAllData(): Result<Unit> = runCatching {
         val uid = requireUserId()
         val userDoc = db.collection("users").document(uid)
-        val collections = listOf("tasks", "transactions", "notes", "jobs", "documents", "chat_messages")
+        val collections = listOf("tasks", "transactions", "notes", "jobs", "documents", "chat_messages", "habits", "goals", "agent_actions", "settings")
         for (col in collections) {
             val snap = userDoc.collection(col).get().await()
             for (d in snap.documents) {
@@ -438,3 +648,5 @@ class HayatimRepository(private val db: FirebaseFirestore) {
         userDoc.delete().await()
     }
 }
+
+

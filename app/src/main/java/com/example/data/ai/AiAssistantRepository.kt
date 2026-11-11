@@ -12,6 +12,9 @@ import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.withTimeout
 import org.json.JSONObject
 
+import android.graphics.Bitmap
+import com.google.firebase.ai.type.content
+
 private const val TAG = "AiAssistantRepo"
 
 data class ExtractedTask(
@@ -28,6 +31,25 @@ data class ExtractedTransaction(
     val type: String,
     val category: String,
     val date: String
+)
+
+data class AiActionProposal(
+    val actionType: String, // CREATE_TASK, CREATE_TRANSACTION, CREATE_HABIT, PLAN_DAY, ANALYZE_DOCUMENT
+    val title: String,
+    val details: String,
+    val amount: Double = 0.0,
+    val category: String = "Genel",
+    val date: String = "",
+    val time: String = "",
+    val priority: String = "MEDIUM"
+)
+
+data class LifeIntelligenceReport(
+    val summary: String,
+    val productivityScore: Int,
+    val financialHealth: String,
+    val habitConsistency: String,
+    val keyRecommendations: List<String>
 )
 
 class AiAssistantRepository {
@@ -187,6 +209,9 @@ class AiAssistantRepository {
     /**
      * Daily plan & productivity generator.
      */
+    /**
+     * Daily plan & productivity generator.
+     */
     suspend fun generateDailyPlan(tasksSummary: String): String {
         return try {
             withTimeout(45_000L) {
@@ -207,4 +232,163 @@ class AiAssistantRepository {
             "Günlük plan oluşturulurken bir hata oluştu: ${e.localizedMessage}"
         }
     }
+
+    /**
+     * Multimodal Image / Document Analysis with Gemini
+     */
+    suspend fun analyzeDocumentImage(bitmap: Bitmap, prompt: String): String {
+        return try {
+            withTimeout(60_000L) {
+                val inputContent = content {
+                    image(bitmap)
+                    text(
+                        if (prompt.isNotBlank()) prompt
+                        else "Bu görseldeki belgeyi, fişi veya metni ayrıntılı şekilde incele. Metinleri çıkar (OCR), önemli tarihleri, tutarları ve eylem maddelerini özetle."
+                    )
+                }
+                val response = generalModel.generateContent(inputContent)
+                response.text ?: "Görsel analizi tamamlandı ancak metin üretilemedi."
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "Document image analysis failed", e)
+            "Görsel analiz edilirken bir hata oluştu: ${e.localizedMessage}"
+        }
+    }
+
+    /**
+     * Autonomous Action Parser: Parses any Turkish user intent into a structured AiActionProposal
+     */
+    suspend fun parseAutonomousAction(userText: String, todayDate: String): AiActionProposal? {
+        return try {
+            withTimeout(30_000L) {
+                val prompt = """
+                Bugünün tarihi: $todayDate
+                Kullanıcı ifadesi: "$userText"
+
+                Kullanıcının ifadesini analiz et. Eğer bir görev ekleme, hatırlatıcı, finansal işlem (gelir/gider) veya alışkanlık talebi varsa JSON formatında yanıt ver. 
+                Hiçbir işlem yoksa sadece "null" yaz.
+                JSON şeması:
+                {
+                   "actionType": "CREATE_TASK" | "CREATE_TRANSACTION" | "CREATE_HABIT" | "NONE",
+                   "title": "İşlemin net başlığı",
+                   "details": "Açıklama veya ek not",
+                   "amount": 0.0,
+                   "category": "Kategori",
+                   "date": "YYYY-MM-DD",
+                   "time": "HH:mm",
+                   "priority": "LOW" | "MEDIUM" | "HIGH" | "URGENT"
+                }
+                Sadece ham JSON veya null döndür.
+                """.trimIndent()
+
+                val response = generalModel.generateContent(prompt)
+                val raw = response.text?.trim() ?: return@withTimeout null
+                if (raw.equals("null", ignoreCase = true) || raw.contains("\"actionType\": \"NONE\"")) {
+                    return@withTimeout null
+                }
+                val cleanedJson = raw.removePrefix("```json").removePrefix("```").removeSuffix("```").trim()
+                val json = JSONObject(cleanedJson)
+                val type = json.optString("actionType", "NONE")
+                if (type == "NONE") return@withTimeout null
+
+                AiActionProposal(
+                    actionType = type,
+                    title = json.optString("title", userText),
+                    details = json.optString("details", ""),
+                    amount = json.optDouble("amount", 0.0),
+                    category = json.optString("category", "Genel"),
+                    date = json.optString("date", todayDate),
+                    time = json.optString("time", ""),
+                    priority = json.optString("priority", "MEDIUM")
+                )
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "Autonomous action parsing failed", e)
+            null
+        }
+    }
+
+    /**
+     * Smart Life Intelligence Generator: Analyzes user's actual life data (tasks, habits, budget, goals)
+     */
+    suspend fun generateSmartLifeReport(
+        tasksCount: Int,
+        completedTasksCount: Int,
+        habitsCount: Int,
+        totalStreak: Long,
+        monthlyBudget: Double,
+        currentSpent: Double,
+        goalsCount: Int
+    ): String {
+        return try {
+            withTimeout(50_000L) {
+                val prompt = """
+                HAYATIM AI Akıllı Yaşam Analizi Motoru:
+                Kullanıcı Verileri:
+                - Görevler: Toplam $tasksCount, Tamamlanan: $completedTasksCount
+                - Alışkanlıklar: $habitsCount takip ediliyor, En yüksek seri: $totalStreak gün
+                - Finans: Aylık bütçe ₺$monthlyBudget, Şu ana kadar harcanan: ₺$currentSpent
+                - Vizyon Hedefleri: $goalsCount aktif hedef
+
+                Lütfen kullanıcı için kapsamlı bir "Akıllı Yaşam ve Verimlilik Raporu" oluştur:
+                1. 📊 Genel Yaşam ve Zaman Yönetimi Puanı (%100 üzerinden) ve Değerlendirmesi
+                2. 🎯 Görev ve Alışkanlık Tutarlılığı
+                3. 💰 Finansal Sağlık & Bütçe Disiplini Durumu
+                4. 💡 Bu Hafta İçin 3 Somut ve Stratejik Yaşam Tavsiyesi
+                Motive edici, samimi, profesyonel ve Türkçe bir tonla sun.
+                """.trimIndent()
+
+                val response = generalModel.generateContent(prompt)
+                response.text ?: "Yaşam analizi oluşturuldu."
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "Life intelligence generation failed", e)
+            "Yaşam analizi hazırlanırken bir hata oluştu: ${e.localizedMessage}"
+        }
+    }
+
+    /**
+     * AI App Center: Executes specialized domain-expert assistant modules
+     */
+    suspend fun runSpecializedAiModule(moduleId: String, moduleTitle: String, userInput: String): String {
+        return try {
+            withTimeout(50_000L) {
+                val systemRole = when (moduleId) {
+                    "education" -> "Sen HAYATIM AI Eğitim ve Öğrenim Asistanısın. Konu anlatımı, sınav hazırlığı ve verimli çalışma tekniklerinde uzmansın."
+                    "travel" -> "Sen HAYATIM AI Seyahat Asistanısın. Rota çıkarma, gezilecek yerler, bütçe planı ve bavul listesi hazırlamada uzmansın."
+                    "shopping" -> "Sen HAYATIM AI Akıllı Alışveriş Danışmanısın. İhtiyaç analizi, ürün karşılaştırması ve bütçe tasarrufunda uzmansın."
+                    "career" -> "Sen HAYATIM AI Kariyer Koçusun. CV hazırlama, mülakat simülasyonu ve iş stratejilerinde uzmansın."
+                    "finance" -> "Sen HAYATIM AI Finans Danışmanısın. Harcama kontrolü, tasarruf stratejileri ve bütçe disiplininde uzmansın."
+                    "real_estate" -> "Sen HAYATIM AI Emlak ve Gayrimenkul Asistanısın. İlan metni yazımı, kira analizi ve mülk yönetiminde uzmansın."
+                    "creative" -> "Sen HAYATIM AI Yaratıcı İçerik Asistanısın. Metin yazarlığı, sosyal medya fikirleri ve hikaye kurgusunda uzmansın."
+                    "software" -> "Sen HAYATIM AI Yazılım Mühendisi Asistanısın. Kotlin, Android mimarisi, kod optimizasyonu ve hata ayıklamada uzmansın."
+                    else -> "Sen HAYATIM AI Uzman Asistanısın."
+                }
+
+                val prompt = """
+                $systemRole
+                Kullanıcı İsteği / Sorusu:
+                $userInput
+
+                Lütfen kapsamlı, pratik, doğrudan uygulanabilir ve yüksek kaliteli bir yanıt hazırla.
+                """.trimIndent()
+
+                val response = generalModel.generateContent(prompt)
+                response.text ?: "Modül yanıtı üretilemedi."
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(TAG, "Specialized module run failed", e)
+            "İşlem sırasında hata oluştu: ${e.localizedMessage}"
+        }
+    }
 }
+
+

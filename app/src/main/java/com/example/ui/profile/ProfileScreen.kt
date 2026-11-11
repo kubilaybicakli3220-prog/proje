@@ -266,6 +266,149 @@ fun ProfileScreen(
             }
         }
 
+        // AI Personalization Settings
+        item {
+            val aiSettings by mainViewModel.aiSettings.collectAsState()
+            var showAiSettingsDialog by remember { mutableStateOf(false) }
+
+            Text(
+                text = "Yapay Zekâ Kişiselleştirme & Hafıza",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onBackground
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            Text(
+                                text = "Asistan: ${aiSettings.assistantName} (${aiSettings.persona})",
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = CyanAccent
+                            )
+                            Text(
+                                text = "Ton: ${if (aiSettings.tone == "FORMAL") "Resmî" else "Samimi"} • ${if (aiSettings.autoSpeak) "Sesli Yanıt Açık" else "Sesli Yanıt Kapalı"}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        androidx.compose.material3.TextButton(onClick = { showAiSettingsDialog = true }) {
+                            Text("Düzenle", color = CyanAccent, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Otonom Ajan Algılaması", style = MaterialTheme.typography.bodyMedium)
+                        androidx.compose.material3.Switch(
+                            checked = aiSettings.autoDetectActions,
+                            onCheckedChange = { checked ->
+                                mainViewModel.updateAiSettings(aiSettings.copy(autoDetectActions = checked))
+                            }
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Yanıtlarda Otomatik Seslendirme", style = MaterialTheme.typography.bodyMedium)
+                        androidx.compose.material3.Switch(
+                            checked = aiSettings.autoSpeak,
+                            onCheckedChange = { checked ->
+                                mainViewModel.updateAiSettings(aiSettings.copy(autoSpeak = checked))
+                            }
+                        )
+                    }
+                }
+            }
+
+            if (showAiSettingsDialog) {
+                var name by remember { mutableStateOf(aiSettings.assistantName) }
+                var persona by remember { mutableStateOf(aiSettings.persona) }
+                var tone by remember { mutableStateOf(aiSettings.tone) }
+
+                androidx.compose.ui.window.Dialog(onDismissRequest = { showAiSettingsDialog = false }) {
+                    Card(
+                        shape = RoundedCornerShape(20.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                        modifier = Modifier.fillMaxWidth().padding(12.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                            Text(text = "AI Kişilik & Davranış Ayarları", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold))
+
+                            OutlinedTextField(
+                                value = name,
+                                onValueChange = { name = it },
+                                label = { Text("Asistan Adı") },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true
+                            )
+
+                            Text("Kişilik / Rol Seçimi:", style = MaterialTheme.typography.labelMedium)
+                            val personas = listOf(
+                                "PROFESSIONAL" to "Profesyonel Asistan",
+                                "FRIEND" to "Günlük Arkadaş",
+                                "CAREER" to "Kariyer Danışmanı",
+                                "FINANCIAL" to "Finans Koçu",
+                                "CREATIVE" to "Yaratıcı Asistan"
+                            )
+                            Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                personas.forEach { (pKey, pLabel) ->
+                                    val isSelected = persona == pKey
+                                    Surface(
+                                        modifier = Modifier.fillMaxWidth().clickable { persona = pKey },
+                                        shape = RoundedCornerShape(8.dp),
+                                        color = if (isSelected) CyanAccent else MaterialTheme.colorScheme.surfaceVariant
+                                    ) {
+                                        Text(
+                                            text = pLabel,
+                                            color = if (isSelected) NavyDark else MaterialTheme.colorScheme.onSurface,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            modifier = Modifier.padding(10.dp),
+                                            fontSize = 12.sp
+                                        )
+                                    }
+                                }
+                            }
+
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                                TextButton(onClick = { showAiSettingsDialog = false }) { Text("İptal") }
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Button(onClick = {
+                                    mainViewModel.updateAiSettings(
+                                        aiSettings.copy(
+                                            assistantName = name.ifBlank { "HAYATIM AI" },
+                                            persona = persona,
+                                            tone = tone
+                                        )
+                                    )
+                                    showAiSettingsDialog = false
+                                }) {
+                                    Text("Kaydet")
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         // KVKK and Privacy Policy
         item {
             Text(

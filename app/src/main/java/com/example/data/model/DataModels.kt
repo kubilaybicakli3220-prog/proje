@@ -176,4 +176,96 @@ data class ChatMessage(
         "suggestedAction" to suggestedAction,
         "createdAt" to (createdAt ?: FieldValue.serverTimestamp())
     ).filterValues { it != null }
+}@IgnoreExtraProperties
+data class HabitItem(
+    @DocumentId val id: String = "",
+    val userId: String = "",
+    val title: String = "",
+    val frequency: String = "DAILY", // DAILY, WEEKLY
+    val streakCount: Long = 0,
+    val lastCompletedDate: String = "", // YYYY-MM-DD
+    val targetDaysPerWeek: Long = 7,
+    @ServerTimestamp val createdAt: Timestamp? = null,
+    @ServerTimestamp val updatedAt: Timestamp? = null
+) {
+    fun toMap(): Map<String, Any?> = mapOf(
+        "userId" to userId,
+        "title" to title,
+        "frequency" to frequency,
+        "streakCount" to streakCount,
+        "lastCompletedDate" to lastCompletedDate,
+        "targetDaysPerWeek" to targetDaysPerWeek,
+        "createdAt" to (createdAt ?: FieldValue.serverTimestamp()),
+        "updatedAt" to FieldValue.serverTimestamp()
+    ).filterValues { it != null }
+}
+
+@IgnoreExtraProperties
+data class GoalItem(
+    @DocumentId val id: String = "",
+    val userId: String = "",
+    val title: String = "",
+    val description: String = "",
+    val targetDate: String = "", // YYYY-MM-DD
+    val progressPercentage: Long = 0, // 0..100
+    val category: String = "Kişisel",
+    @ServerTimestamp val createdAt: Timestamp? = null,
+    @ServerTimestamp val updatedAt: Timestamp? = null
+) {
+    fun toMap(): Map<String, Any?> = mapOf(
+        "userId" to userId,
+        "title" to title,
+        "description" to description,
+        "targetDate" to targetDate,
+        "progressPercentage" to progressPercentage,
+        "category" to category,
+        "createdAt" to (createdAt ?: FieldValue.serverTimestamp()),
+        "updatedAt" to FieldValue.serverTimestamp()
+    ).filterValues { it != null }
+}
+
+@IgnoreExtraProperties
+data class AiSettings(
+    @DocumentId val id: String = "",
+    val userId: String = "",
+    val assistantName: String = "HAYATIM AI",
+    val persona: String = "PROFESSIONAL", // PROFESSIONAL, FRIEND, CAREER, FINANCIAL, CREATIVE, TECH, EDUCATION
+    val tone: String = "FORMAL", // FORMAL, CASUAL
+    val verbosity: String = "DETAILED", // CONCISE, DETAILED
+    val voiceSpeed: Float = 1.0f,
+    val autoSpeak: Boolean = false,
+    val autoDetectActions: Boolean = true,
+    @ServerTimestamp val updatedAt: Timestamp? = null
+) {
+    fun toMap(): Map<String, Any?> = mapOf(
+        "userId" to userId,
+        "assistantName" to assistantName,
+        "persona" to persona,
+        "tone" to tone,
+        "verbosity" to verbosity,
+        "voiceSpeed" to voiceSpeed,
+        "autoSpeak" to autoSpeak,
+        "autoDetectActions" to autoDetectActions,
+        "updatedAt" to FieldValue.serverTimestamp()
+    ).filterValues { it != null }
+}
+
+@IgnoreExtraProperties
+data class AgentActionLog(
+    @DocumentId val id: String = "",
+    val userId: String = "",
+    val actionType: String = "", // CREATE_TASK, CREATE_TRANSACTION, CREATE_HABIT, ANALYZE_DOCUMENT
+    val summary: String = "",
+    val status: String = "EXECUTED", // PENDING, EXECUTED, CANCELLED
+    val timestamp: String = "",
+    @ServerTimestamp val createdAt: Timestamp? = null
+) {
+    fun toMap(): Map<String, Any?> = mapOf(
+        "userId" to userId,
+        "actionType" to actionType,
+        "summary" to summary,
+        "status" to status,
+        "timestamp" to timestamp,
+        "createdAt" to (createdAt ?: FieldValue.serverTimestamp())
+    ).filterValues { it != null }
 }

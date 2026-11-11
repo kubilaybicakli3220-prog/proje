@@ -76,6 +76,28 @@ service cloud.firestore {
              (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
     }
 
+    function isValidHabit(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 150 &&
+             (!('frequency' in data) || (data.frequency is string && data.frequency.size() <= 30)) &&
+             data.streakCount is int && data.streakCount >= 0 &&
+             (!('lastCompletedDate' in data) || (data.lastCompletedDate is string && data.lastCompletedDate.size() <= 20)) &&
+             (!('targetDaysPerWeek' in data) || data.targetDaysPerWeek is int) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
+    function isValidGoal(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             data.title is string && data.title.size() > 0 && data.title.size() <= 150 &&
+             (!('description' in data) || (data.description is string && data.description.size() <= 1000)) &&
+             (!('targetDate' in data) || (data.targetDate is string && data.targetDate.size() <= 20)) &&
+             data.progressPercentage is int && data.progressPercentage >= 0 && data.progressPercentage <= 100 &&
+             (!('category' in data) || (data.category is string && data.category.size() <= 50)) &&
+             data.createdAt is timestamp && data.createdAt <= request.time &&
+             (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
     function isValidJob(data) {
       return data.userId is string && data.userId.size() <= 128 &&
              data.company is string && data.company.size() > 0 && data.company.size() <= 100 &&
@@ -105,6 +127,27 @@ service cloud.firestore {
              data.role in ['user', 'model'] &&
              data.content is string && data.content.size() <= 10000 &&
              (!('suggestedAction' in data) || (data.suggestedAction is string && data.suggestedAction.size() <= 500)) &&
+             data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    function isValidAiSettings(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             data.assistantName is string && data.assistantName.size() > 0 && data.assistantName.size() <= 50 &&
+             data.persona is string && data.persona in ['PROFESSIONAL', 'FRIEND', 'CAREER', 'FINANCIAL', 'CREATIVE', 'TECH', 'EDUCATION'] &&
+             data.tone in ['FORMAL', 'CASUAL'] &&
+             data.verbosity in ['CONCISE', 'DETAILED'] &&
+             (!('voiceSpeed' in data) || data.voiceSpeed is number) &&
+             (!('autoSpeak' in data) || data.autoSpeak is bool) &&
+             (!('autoDetectActions' in data) || data.autoDetectActions is bool) &&
+             (!('updatedAt' in data) || (data.updatedAt is timestamp && data.updatedAt <= request.time));
+    }
+
+    function isValidAgentAction(data) {
+      return data.userId is string && data.userId.size() <= 128 &&
+             data.actionType is string && data.actionType.size() <= 100 &&
+             data.summary is string && data.summary.size() <= 1000 &&
+             data.status in ['PENDING', 'EXECUTED', 'CANCELLED'] &&
+             (!('timestamp' in data) || (data.timestamp is string && data.timestamp.size() <= 50)) &&
              data.createdAt is timestamp && data.createdAt <= request.time;
     }
 
@@ -193,6 +236,50 @@ service cloud.firestore {
         allow delete: if isOwner(userId) && isValidId(noteId);
       }
 
+      // Habits subcollection
+      match /habits/{habitId} {
+        allow get: if isOwner(userId) && isValidId(habitId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(habitId) &&
+                         incoming().userId == userId &&
+                         incoming().keys().hasAll(['userId', 'title', 'streakCount', 'createdAt']) &&
+                         incoming().keys().hasOnly(['userId', 'title', 'frequency', 'streakCount', 'lastCompletedDate', 'targetDaysPerWeek', 'createdAt', 'updatedAt']) &&
+                         isValidHabit(incoming());
+
+        allow update: if isOwner(userId) &&
+                         isValidId(habitId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['title', 'frequency', 'streakCount', 'lastCompletedDate', 'targetDaysPerWeek', 'updatedAt']) &&
+                         isValidHabit(incoming());
+
+        allow delete: if isOwner(userId) && isValidId(habitId);
+      }
+
+      // Goals subcollection
+      match /goals/{goalId} {
+        allow get: if isOwner(userId) && isValidId(goalId);
+        allow list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(goalId) &&
+                         incoming().userId == userId &&
+                         incoming().keys().hasAll(['userId', 'title', 'progressPercentage', 'createdAt']) &&
+                         incoming().keys().hasOnly(['userId', 'title', 'description', 'targetDate', 'progressPercentage', 'category', 'createdAt', 'updatedAt']) &&
+                         isValidGoal(incoming());
+
+        allow update: if isOwner(userId) &&
+                         isValidId(goalId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'targetDate', 'progressPercentage', 'category', 'updatedAt']) &&
+                         isValidGoal(incoming());
+
+        allow delete: if isOwner(userId) && isValidId(goalId);
+      }
+
       // Job applications subcollection
       match /jobs/{jobId} {
         allow get: if isOwner(userId) && isValidId(jobId);
@@ -252,6 +339,36 @@ service cloud.firestore {
         allow update: if false; // Chat history messages are append-only
         allow delete: if isOwner(userId) && isValidId(messageId);
       }
+
+      // Settings subcollection (AI settings & persona)
+      match /settings/{settingId} {
+        allow get: if isOwner(userId);
+        allow list: if isOwner(userId);
+        allow create, update: if isOwner(userId) &&
+                                 incoming().userId == userId &&
+                                 incoming().keys().hasAll(['userId', 'assistantName', 'persona', 'tone', 'verbosity']) &&
+                                 isValidAiSettings(incoming());
+        allow delete: if isOwner(userId);
+      }
+
+      // Agent action logs subcollection
+      match /agent_actions/{actionId} {
+        allow get: if isOwner(userId) && isValidId(actionId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) &&
+                         isValidId(actionId) &&
+                         incoming().userId == userId &&
+                         incoming().keys().hasAll(['userId', 'actionType', 'summary', 'status', 'createdAt']) &&
+                         isValidAgentAction(incoming());
+        allow update: if isOwner(userId) &&
+                         isValidId(actionId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['status']) &&
+                         isValidAgentAction(incoming());
+        allow delete: if isOwner(userId) && isValidId(actionId);
+      }
     }
   }
 }
+

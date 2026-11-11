@@ -120,3 +120,34 @@ test("Authenticated user: can create and read transactions", async () => {
   const bobDb = testEnv.authenticatedContext(BOB_UID).firestore();
   await assertFails(bobDb.collection("users").doc(ALICE_UID).collection("transactions").doc("tx_1").get());
 });
+
+test("Authenticated user: can create and read habits", async () => {
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  await assertSucceeds(
+    aliceDb.collection("users").doc(ALICE_UID).collection("habits").doc("habit_1").set({
+      userId: ALICE_UID,
+      title: "Günde 2 Litre Su İç",
+      frequency: "DAILY",
+      streakCount: 3,
+      lastCompletedDate: "2026-11-10",
+      targetDaysPerWeek: 7,
+      createdAt: new Date(),
+    })
+  );
+});
+
+test("Authenticated user: can create and read goals", async () => {
+  const aliceDb = testEnv.authenticatedContext(ALICE_UID).firestore();
+  await assertSucceeds(
+    aliceDb.collection("users").doc(ALICE_UID).collection("goals").doc("goal_1").set({
+      userId: ALICE_UID,
+      title: "Yıl Sonuna Kadar 50.000 TL Tasarruf",
+      description: "Acil durum fonu oluştur",
+      targetDate: "2026-12-31",
+      progressPercentage: 45,
+      category: "Finans",
+      createdAt: new Date(),
+    })
+  );
+});
+

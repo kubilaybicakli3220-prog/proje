@@ -20,11 +20,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Apps
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.CheckCircleOutline
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Insights
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.NoteAdd
 import androidx.compose.material.icons.filled.Payments
@@ -58,6 +60,7 @@ import com.example.data.model.TaskItem
 import com.example.ui.theme.AmberAccent
 import com.example.ui.theme.CyanAccent
 import com.example.ui.theme.NavyCard
+import com.example.ui.theme.NavyDark
 import com.example.ui.theme.NavySurface
 import com.example.ui.theme.TealAccent
 import java.text.NumberFormat
@@ -75,6 +78,8 @@ fun HomeScreen(
     onNavigateToNotes: () -> Unit,
     onNavigateToCareer: () -> Unit,
     onNavigateToDocuments: () -> Unit,
+    onNavigateToAppCenter: () -> Unit = {},
+    onNavigateToSmartLife: () -> Unit = {},
     onOpenAddTaskDialog: () -> Unit,
     onOpenAddTransactionDialog: () -> Unit,
     modifier: Modifier = Modifier
@@ -234,6 +239,22 @@ fun HomeScreen(
             ) {
                 item {
                     QuickActionButton(
+                        icon = Icons.Default.Apps,
+                        label = "Uygulamalar",
+                        color = Color(0xFF38BDF8),
+                        onClick = onNavigateToAppCenter
+                    )
+                }
+                item {
+                    QuickActionButton(
+                        icon = Icons.Default.Insights,
+                        label = "Yaşam Analizi",
+                        color = Color(0xFFA78BFA),
+                        onClick = onNavigateToSmartLife
+                    )
+                }
+                item {
+                    QuickActionButton(
                         icon = Icons.Default.Add,
                         label = "Görev Ekle",
                         color = CyanAccent,
@@ -365,6 +386,83 @@ fun HomeScreen(
                             color = if (budgetProgress > 0.9f) Color.Red else TealAccent,
                             trackColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f)
                         )
+                    }
+                }
+            }
+        }
+
+        // Daily Habits Row
+        item {
+            val habits by viewModel.habits.collectAsState()
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = "🔥 Günlük Alışkanlıklar",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                }
+
+                Text(
+                    text = "Yönet >",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.clickable { onNavigateToTasks() }
+                )
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            if (habits.isEmpty()) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                ) {
+                    Text(
+                        text = "Alışkanlık takibi ekleyerek günlük serilerinizi başlatın.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(14.dp)
+                    )
+                }
+            } else {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    items(habits) { habit ->
+                        Card(
+                            shape = RoundedCornerShape(14.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
+                            modifier = Modifier.width(160.dp)
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Text(
+                                    text = habit.title,
+                                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                                    maxLines = 1,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Text(
+                                    text = "🔥 ${habit.streakCount} gün",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = AmberAccent,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Button(
+                                    onClick = { viewModel.completeHabitToday(habit) },
+                                    colors = ButtonDefaults.buttonColors(containerColor = TealAccent),
+                                    shape = RoundedCornerShape(8.dp),
+                                    modifier = Modifier.fillMaxWidth().height(32.dp)
+                                ) {
+                                    Text("Tamamla", color = NavyDark, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                        }
                     }
                 }
             }

@@ -63,22 +63,21 @@ import com.example.ui.theme.TealAccent
 fun TasksScreen(
     viewModel: MainViewModel,
     onOpenAddTaskDialog: () -> Unit,
+    onOpenAddHabitDialog: () -> Unit = {},
+    onOpenAddGoalDialog: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val tasks by viewModel.tasks.collectAsState()
+    val habits by viewModel.habits.collectAsState()
+    val goals by viewModel.goals.collectAsState()
+
     var selectedCategory by remember { mutableStateOf("Tümü") }
-    var selectedTab by remember { mutableIntStateOf(0) } // 0: Tümü, 1: Bekleyen, 2: Tamamlanan
+    var selectedTab by remember { mutableIntStateOf(0) } // 0: Görevler, 1: Alışkanlıklar, 2: Büyük Hedefler
 
     val categories = listOf("Tümü", "İş", "Kişisel", "Sağlık", "Eğitim", "Alışveriş")
 
     val filteredTasks = tasks.filter { task ->
-        val categoryMatch = selectedCategory == "Tümü" || task.category == selectedCategory
-        val statusMatch = when (selectedTab) {
-            1 -> !task.isCompleted
-            2 -> task.isCompleted
-            else -> true
-        }
-        categoryMatch && statusMatch
+        selectedCategory == "Tümü" || task.category == selectedCategory
     }
 
     Box(modifier = modifier.fillMaxSize()) {
@@ -97,12 +96,12 @@ fun TasksScreen(
             ) {
                 Column {
                     Text(
-                        text = "Görev ve Planlama",
+                        text = "Yaşam & Planlama Merkezi",
                         style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onBackground
                     )
                     Text(
-                        text = "Toplam ${tasks.size} görevden ${tasks.count { it.isCompleted }} tanesi tamamlandı",
+                        text = "${tasks.size} görev, ${habits.size} alışkanlık, ${goals.size} hedef takip ediliyor",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -121,82 +120,252 @@ fun TasksScreen(
                 Tab(
                     selected = selectedTab == 0,
                     onClick = { selectedTab = 0 },
-                    text = { Text("Tümü (${tasks.size})") }
+                    text = { Text("Görevler (${tasks.size})") }
                 )
                 Tab(
                     selected = selectedTab == 1,
                     onClick = { selectedTab = 1 },
-                    text = { Text("Bekleyen (${tasks.count { !it.isCompleted }})") }
+                    text = { Text("Alışkanlıklar (${habits.size})") }
                 )
                 Tab(
                     selected = selectedTab == 2,
                     onClick = { selectedTab = 2 },
-                    text = { Text("Tamamlanan (${tasks.count { it.isCompleted }})") }
+                    text = { Text("Hedefler (${goals.size})") }
                 )
             }
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Category Chips
-            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                items(categories) { cat ->
-                    val isSelected = selectedCategory == cat
-                    Surface(
-                        modifier = Modifier.clickable { selectedCategory = cat },
-                        shape = RoundedCornerShape(16.dp),
-                        color = if (isSelected) CyanAccent else MaterialTheme.colorScheme.surfaceVariant
-                    ) {
-                        Text(
-                            text = cat,
-                            color = if (isSelected) NavyDark else MaterialTheme.colorScheme.onSurface,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
-                            fontSize = 13.sp
-                        )
+            when (selectedTab) {
+                0 -> {
+                    // Task categories
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(categories) { cat ->
+                            val isSelected = selectedCategory == cat
+                            Surface(
+                                modifier = Modifier.clickable { selectedCategory = cat },
+                                shape = RoundedCornerShape(16.dp),
+                                color = if (isSelected) CyanAccent else MaterialTheme.colorScheme.surfaceVariant
+                            ) {
+                                Text(
+                                    text = cat,
+                                    color = if (isSelected) NavyDark else MaterialTheme.colorScheme.onSurface,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
+                                    fontSize = 13.sp
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    if (filteredTasks.isEmpty()) {
+                        Box(
+                            modifier = Modifier.fillMaxSize().weight(1f),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Bu kategoride görev bulunamadı.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            items(filteredTasks, key = { it.id }) { task ->
+                                TaskCardItem(
+                                    task = task,
+                                    onToggleComplete = { viewModel.toggleTaskCompleted(task) },
+                                    onDelete = { viewModel.deleteTask(task.id) }
+                                )
+                            }
+                            item { Spacer(modifier = Modifier.height(80.dp)) }
+                        }
                     }
                 }
-            }
+                1 -> {
+                    // Habits tab
+                    if (habits.isEmpty()) {
+                        Box(
+                            modifier = Modifier.fillMaxSize().weight(1f),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Henüz alışkanlık eklenmedi. Sağ alttan yeni alışkanlık ekleyebilirsiniz.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            items(habits, key = { it.id }) { habit ->
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f))
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().padding(14.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = habit.title,
+                                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Spacer(modifier = Modifier.height(4.dp))
+                                            Text(
+                                                text = "🔥 ${habit.streakCount} Günlük Seri! (${if (habit.frequency == "DAILY") "Her Gün" else "Haftalık"})",
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = AmberAccent
+                                            )
+                                        }
 
-            Spacer(modifier = Modifier.height(12.dp))
+                                        androidx.compose.material3.Button(
+                                            onClick = { viewModel.completeHabitToday(habit) },
+                                            colors = androidx.compose.material3.ButtonDefaults.buttonColors(containerColor = TealAccent),
+                                            shape = RoundedCornerShape(10.dp)
+                                        ) {
+                                            Text("Bugün Yapıldı ✓", color = NavyDark, fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                                        }
 
-            // Tasks List
-            if (filteredTasks.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .weight(1f),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = "Bu filtreye uygun görev bulunamadı.",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                                        IconButton(onClick = { viewModel.deleteHabit(habit.id) }) {
+                                            Icon(
+                                                imageVector = Icons.Default.Delete,
+                                                contentDescription = "Sil",
+                                                tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            item { Spacer(modifier = Modifier.height(80.dp)) }
+                        }
                     }
                 }
-            } else {
-                LazyColumn(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    items(filteredTasks, key = { it.id }) { task ->
-                        TaskCardItem(
-                            task = task,
-                            onToggleComplete = { viewModel.toggleTaskCompleted(task) },
-                            onDelete = { viewModel.deleteTask(task.id) }
-                        )
-                    }
-                    item {
-                        Spacer(modifier = Modifier.height(80.dp))
+                2 -> {
+                    // Goals tab
+                    if (goals.isEmpty()) {
+                        Box(
+                            modifier = Modifier.fillMaxSize().weight(1f),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Henüz büyük hedef eklenmedi. Yeni bir vizyon belirleyin!",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            items(goals, key = { it.id }) { goal ->
+                                Card(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    shape = RoundedCornerShape(16.dp),
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f))
+                                ) {
+                                    Column(modifier = Modifier.padding(14.dp)) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = goal.title,
+                                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            IconButton(onClick = { viewModel.deleteGoal(goal.id) }) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Delete,
+                                                    contentDescription = "Sil",
+                                                    tint = MaterialTheme.colorScheme.error.copy(alpha = 0.7f),
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                            }
+                                        }
+
+                                        if (goal.description.isNotBlank()) {
+                                            Text(
+                                                text = goal.description,
+                                                style = MaterialTheme.typography.bodySmall,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+
+                                        Spacer(modifier = Modifier.height(8.dp))
+
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween
+                                        ) {
+                                            Text(
+                                                text = "İlerleme: %${goal.progressPercentage}",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = CyanAccent,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            if (goal.targetDate.isNotBlank()) {
+                                                Text(
+                                                    text = "Hedef Tarih: ${goal.targetDate}",
+                                                    style = MaterialTheme.typography.labelSmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        }
+
+                                        Spacer(modifier = Modifier.height(6.dp))
+
+                                        androidx.compose.material3.LinearProgressIndicator(
+                                            progress = { (goal.progressPercentage / 100f).coerceIn(0f, 1f) },
+                                            modifier = Modifier.fillMaxWidth().height(8.dp),
+                                            color = CyanAccent
+                                        )
+
+                                        Spacer(modifier = Modifier.height(8.dp))
+
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.End
+                                        ) {
+                                            androidx.compose.material3.TextButton(
+                                                onClick = { viewModel.updateGoalProgress(goal, goal.progressPercentage + 10) }
+                                            ) {
+                                                Text("+%10 İlerlet", color = CyanAccent)
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            item { Spacer(modifier = Modifier.height(80.dp)) }
+                        }
                     }
                 }
             }
         }
 
-        // Add Task FAB
+        // Add FAB based on selected tab
         FloatingActionButton(
-            onClick = onOpenAddTaskDialog,
+            onClick = {
+                when (selectedTab) {
+                    0 -> onOpenAddTaskDialog()
+                    1 -> onOpenAddHabitDialog()
+                    2 -> onOpenAddGoalDialog()
+                }
+            },
             modifier = Modifier
                 .align(Alignment.BottomEnd)
                 .padding(20.dp)
@@ -204,7 +373,7 @@ fun TasksScreen(
             containerColor = CyanAccent,
             contentColor = NavyDark
         ) {
-            Icon(imageVector = Icons.Default.Add, contentDescription = "Görev Ekle")
+            Icon(imageVector = Icons.Default.Add, contentDescription = "Ekle")
         }
     }
 }

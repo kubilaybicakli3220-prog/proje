@@ -67,6 +67,38 @@
       },
       "required": ["userId", "title", "content", "createdAt"]
     },
+    "HabitItem": {
+      "title": "HabitItem",
+      "description": "Habit tracking item with daily streaks",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Owner Auth UID" },
+        "title": { "type": "string", "description": "Habit title" },
+        "frequency": { "type": "string", "description": "DAILY or WEEKLY" },
+        "streakCount": { "type": "integer", "description": "Current consecutive streak days" },
+        "lastCompletedDate": { "type": "string", "description": "Last completed date YYYY-MM-DD" },
+        "targetDaysPerWeek": { "type": "integer", "description": "Target days per week" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp via serverTimestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Update timestamp via serverTimestamp" }
+      },
+      "required": ["userId", "title", "streakCount", "createdAt"]
+    },
+    "GoalItem": {
+      "title": "GoalItem",
+      "description": "Life and financial goal target",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Owner Auth UID" },
+        "title": { "type": "string", "description": "Goal title" },
+        "description": { "type": "string", "description": "Goal description" },
+        "targetDate": { "type": "string", "description": "Target date YYYY-MM-DD" },
+        "progressPercentage": { "type": "integer", "description": "Progress percentage 0 to 100" },
+        "category": { "type": "string", "description": "Goal category" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Creation timestamp via serverTimestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Update timestamp via serverTimestamp" }
+      },
+      "required": ["userId", "title", "progressPercentage", "createdAt"]
+    },
     "JobApplication": {
       "title": "JobApplication",
       "description": "Job application and career tracking record",
@@ -131,6 +163,14 @@
     "/users/{userId}/notes/{noteId}": {
       "schema": { "$ref": "#/entities/NoteItem" },
       "description": "Personal notes subcollection"
+    },
+    "/users/{userId}/habits/{habitId}": {
+      "schema": { "$ref": "#/entities/HabitItem" },
+      "description": "Habits subcollection"
+    },
+    "/users/{userId}/goals/{goalId}": {
+      "schema": { "$ref": "#/entities/GoalItem" },
+      "description": "Goals subcollection"
     },
     "/users/{userId}/jobs/{jobId}": {
       "schema": { "$ref": "#/entities/JobApplication" },

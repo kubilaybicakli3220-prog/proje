@@ -5,6 +5,8 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.ai.AiAssistantRepository
 import com.example.data.ai.ExtractedTask
+import com.example.data.model.AgentActionLog
+import com.example.data.model.AiSettings
 import com.example.data.model.ChatMessage
 import com.example.data.model.JobApplication
 import com.example.data.model.NoteItem
@@ -24,15 +26,29 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+import android.graphics.Bitmap
+import com.example.data.ai.AiActionProposal
+import com.example.data.model.GoalItem
+import com.example.data.model.HabitItem
+import com.example.util.NotificationHelper
+import com.example.util.TextToSpeechManager
+
 class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository = HayatimRepository(application)
     private val aiRepository = AiAssistantRepository()
+    private val ttsManager = TextToSpeechManager(application)
 
     val userProfile: StateFlow<UserProfile?> = repository.observeUserProfile()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     val tasks: StateFlow<List<TaskItem>> = repository.observeTasks()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val habits: StateFlow<List<HabitItem>> = repository.observeHabits()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    val goals: StateFlow<List<GoalItem>> = repository.observeGoals()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val transactions: StateFlow<List<TransactionItem>> = repository.observeTransactions()
@@ -50,6 +66,24 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     val chatMessages: StateFlow<List<ChatMessage>> = repository.observeChatMessages()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
+    val aiSettings: StateFlow<AiSettings> = repository.observeAiSettings()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), AiSettings())
+
+    val agentActionLogs: StateFlow<List<AgentActionLog>> = repository.observeAgentActionLogs()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    private val _lifeReport = MutableStateFlow<String?>(null)
+    val lifeReport: StateFlow<String?> = _lifeReport.asStateFlow()
+
+    private val _isGeneratingLifeReport = MutableStateFlow(false)
+    val isGeneratingLifeReport: StateFlow<Boolean> = _isGeneratingLifeReport.asStateFlow()
+
+    private val _activeAppModuleResult = MutableStateFlow<String?>(null)
+    val activeAppModuleResult: StateFlow<String?> = _activeAppModuleResult.asStateFlow()
+
+    private val _isAppModuleLoading = MutableStateFlow(false)
+    val isAppModuleLoading: StateFlow<Boolean> = _isAppModuleLoading.asStateFlow()
+
     private val _aiStreamingText = MutableStateFlow("")
     val aiStreamingText: StateFlow<String> = _aiStreamingText.asStateFlow()
 
@@ -58,6 +92,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _extractedTask = MutableStateFlow<ExtractedTask?>(null)
     val extractedTask: StateFlow<ExtractedTask?> = _extractedTask.asStateFlow()
+
+    private val _actionProposal = MutableStateFlow<AiActionProposal?>(null)
+    val actionProposal: StateFlow<AiActionProposal?> = _actionProposal.asStateFlow()
 
     private val _aiAnalysisResult = MutableStateFlow<String?>(null)
     val aiAnalysisResult: StateFlow<String?> = _aiAnalysisResult.asStateFlow()
@@ -291,18 +328,72 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             if (finalAiText.isNotBlank()) {
                 val modelMsg = ChatMessage(role = "model", content = finalAiText)
                 repository.addChatMessage(modelMsg)
+                if (aiSettings.value.autoSpeak) {
+                    ttsManager.speak(finalAiText)
+                }
             }
             _aiStreamingText.value = ""
             _isAiGenerating.value = false
 
-            // Check if user requested task/reminder creation in the background
-            val lower = userText.lowercase(Locale.forLanguageTag("tr"))
-            if (lower.contains("hatırlat") || lower.contains("görev") || lower.contains("randevu") || lower.contains("yapmam lazım")) {
-                val extracted = aiRepository.extractTaskFromText(userText, today)
-                if (extracted != null && extracted.title.isNotBlank()) {
-                    _extractedTask.value = extracted
+            // Autonomous Action Proposal check
+            if (aiSettings.value.autoDetectActions) {
+                val proposal = aiRepository.parseAutonomousAction(userText, today)
+                if (proposal != null && proposal.title.isNotBlank()) {
+                    _actionProposal.value = proposal
                 }
             }
+        }
+    }
+
+    fun dismissActionProposal() {
+        _actionProposal.value = null
+    }
+
+    fun executeActionProposal(proposal: AiActionProposal) {
+        viewModelScope.launch(Dispatchers.IO) {
+            when (proposal.actionType) {
+                "CREATE_TASK" -> {
+                    addTask(
+                        title = proposal.title,
+                        description = proposal.details,
+                        category = proposal.category,
+                        priority = proposal.priority,
+                        dueDate = proposal.date,
+                        dueTime = proposal.time,
+                        reminder = true
+                    )
+                }
+                "CREATE_TRANSACTION" -> {
+                    addTransaction(
+                        title = proposal.title,
+                        amount = proposal.amount,
+                        type = if (proposal.amount < 0) "EXPENSE" else "EXPENSE",
+                        category = proposal.category,
+                        date = proposal.date,
+                        note = proposal.details
+                    )
+                }
+                "CREATE_HABIT" -> {
+                    addHabit(
+                        title = proposal.title,
+                        frequency = "DAILY",
+                        targetDays = 7
+                    )
+                }
+            }
+
+            // Log agent action
+            repository.logAgentAction(
+                AgentActionLog(
+                    actionType = proposal.actionType,
+                    summary = "${proposal.title} (${proposal.category})",
+                    status = "EXECUTED",
+                    timestamp = SimpleDateFormat("yyyy-MM-dd HH:mm", Locale.getDefault()).format(Date())
+                )
+            )
+
+            _actionProposal.value = null
+            _statusMessage.value = "AI Ajanı işlemi tamamladı: ${proposal.title}"
         }
     }
 
@@ -360,11 +451,188 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    // ==================== HABIT ACTIONS ====================
+
+    fun addHabit(title: String, frequency: String = "DAILY", targetDays: Long = 7) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val habit = HabitItem(
+                title = title.trim(),
+                frequency = frequency,
+                streakCount = 0,
+                targetDaysPerWeek = targetDays
+            )
+            repository.addHabit(habit).onSuccess {
+                _statusMessage.value = "Alışkanlık eklendi: $title"
+            }.onFailure { e ->
+                _statusMessage.value = "Alışkanlık eklenemedi: ${e.localizedMessage}"
+            }
+        }
+    }
+
+    fun completeHabitToday(habit: HabitItem) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val today = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+            val newStreak = if (habit.lastCompletedDate == today) {
+                habit.streakCount // already completed today
+            } else {
+                habit.streakCount + 1
+            }
+            val updated = habit.copy(
+                streakCount = newStreak,
+                lastCompletedDate = today
+            )
+            repository.updateHabit(updated).onSuccess {
+                _statusMessage.value = "🔥 Harika! ${habit.title} serisi: $newStreak gün!"
+                NotificationHelper.sendNotification(
+                    getApplication(),
+                    (System.currentTimeMillis() % 100000).toInt(),
+                    "🔥 Alışkanlık Tamamlandı!",
+                    "${habit.title} tamamlandı. Seriniz $newStreak güne ulaştı!"
+                )
+            }
+        }
+    }
+
+    fun deleteHabit(habitId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.deleteHabit(habitId)
+        }
+    }
+
+    // ==================== GOAL ACTIONS ====================
+
+    fun addGoal(title: String, description: String = "", targetDate: String = "", category: String = "Kişisel") {
+        viewModelScope.launch(Dispatchers.IO) {
+            val goal = GoalItem(
+                title = title.trim(),
+                description = description.trim(),
+                targetDate = targetDate,
+                progressPercentage = 0,
+                category = category
+            )
+            repository.addGoal(goal).onSuccess {
+                _statusMessage.value = "Hedef oluşturuldu: $title"
+            }.onFailure { e ->
+                _statusMessage.value = "Hedef eklenemedi: ${e.localizedMessage}"
+            }
+        }
+    }
+
+    fun updateGoalProgress(goal: GoalItem, progress: Long) {
+        viewModelScope.launch(Dispatchers.IO) {
+            val updated = goal.copy(progressPercentage = progress.coerceIn(0, 100))
+            repository.updateGoal(updated).onSuccess {
+                _statusMessage.value = "${goal.title} ilerlemesi: %$progress"
+            }
+        }
+    }
+
+    fun deleteGoal(goalId: String) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.deleteGoal(goalId)
+        }
+    }
+
+    // ==================== TTS & AUDIO ====================
+
+    fun speakText(text: String) {
+        ttsManager.speak(text)
+    }
+
+    fun stopSpeaking() {
+        ttsManager.stop()
+    }
+
+    // ==================== MULTIMODAL DOCUMENT ANALYSIS ====================
+
+    fun analyzeDocumentBitmap(bitmap: Bitmap, prompt: String = "") {
+        viewModelScope.launch {
+            _isAiGenerating.value = true
+            _aiStreamingText.value = "Görsel Gemini 3.8 Flash ile taranıyor ve metin çıkarılıyor..."
+            val result = aiRepository.analyzeDocumentImage(bitmap, prompt)
+            _aiStreamingText.value = ""
+            _isAiGenerating.value = false
+
+            // Save as chat message
+            repository.addChatMessage(ChatMessage(role = "user", content = "[Görsel / Belge Taraması Yapıldı]"))
+            repository.addChatMessage(ChatMessage(role = "model", content = result))
+        }
+    }
+
+    // ==================== SMART LIFE INTELLIGENCE ====================
+
+    fun generateLifeIntelligenceReport() {
+        val tList = tasks.value
+        val hList = habits.value
+        val gList = goals.value
+        val txList = transactions.value
+
+        val tasksCount = tList.size
+        val completedCount = tList.count { it.isCompleted }
+        val habitsCount = hList.size
+        val maxStreak = hList.maxOfOrNull { it.streakCount } ?: 0L
+        val budget = userProfile.value?.monthlyBudget ?: 15000.0
+        val spent = txList.filter { it.type == "EXPENSE" }.sumOf { it.amount }
+        val goalsCount = gList.size
+
+        viewModelScope.launch {
+            _isGeneratingLifeReport.value = true
+            _lifeReport.value = null
+            val result = aiRepository.generateSmartLifeReport(
+                tasksCount = tasksCount,
+                completedTasksCount = completedCount,
+                habitsCount = habitsCount,
+                totalStreak = maxStreak,
+                monthlyBudget = budget,
+                currentSpent = spent,
+                goalsCount = goalsCount
+            )
+            _lifeReport.value = result
+            _isGeneratingLifeReport.value = false
+        }
+    }
+
+    fun clearLifeReport() {
+        _lifeReport.value = null
+    }
+
+    // ==================== AI APP CENTER ====================
+
+    fun runSpecializedAppModule(moduleId: String, moduleTitle: String, input: String) {
+        if (input.isBlank()) return
+        viewModelScope.launch {
+            _isAppModuleLoading.value = true
+            _activeAppModuleResult.value = null
+            val result = aiRepository.runSpecializedAiModule(moduleId, moduleTitle, input)
+            _activeAppModuleResult.value = result
+            _isAppModuleLoading.value = false
+        }
+    }
+
+    fun clearAppModuleResult() {
+        _activeAppModuleResult.value = null
+    }
+
+    // ==================== AI PERSONALIZATION & SETTINGS ====================
+
+    fun updateAiSettings(settings: AiSettings) {
+        viewModelScope.launch(Dispatchers.IO) {
+            repository.saveAiSettings(settings).onSuccess {
+                _statusMessage.value = "AI Kişiselleştirme tercihleri güncellendi."
+            }
+        }
+    }
+
     fun deleteAccountData() {
         viewModelScope.launch(Dispatchers.IO) {
             repository.deleteUserAllData().onSuccess {
                 _statusMessage.value = "Tüm verileriniz kalıcı olarak silindi."
             }
         }
+    }
+
+    override fun onCleared() {
+        super.onCleared()
+        ttsManager.shutdown()
     }
 }

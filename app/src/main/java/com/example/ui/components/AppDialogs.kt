@@ -515,3 +515,167 @@ fun AddDocumentDialog(
         }
     }
 }
+
+@Composable
+fun AddHabitDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (title: String, frequency: String, targetDays: Long) -> Unit
+) {
+    var title by remember { mutableStateOf("") }
+    var frequency by remember { mutableStateOf("DAILY") }
+    var targetDaysStr by remember { mutableStateOf("7") }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            modifier = Modifier.fillMaxWidth().padding(16.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = "Yeni Alışkanlık Oluştur",
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("Alışkanlık Adı * (ör. Kitap Oku, Su İç)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = { frequency = "DAILY" },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (frequency == "DAILY") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Günlük", color = if (frequency == "DAILY") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface)
+                    }
+
+                    Button(
+                        onClick = { frequency = "WEEKLY" },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (frequency == "WEEKLY") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text("Haftalık", color = if (frequency == "WEEKLY") MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface)
+                    }
+                }
+
+                OutlinedTextField(
+                    value = targetDaysStr,
+                    onValueChange = { targetDaysStr = it },
+                    label = { Text("Haftalık Hedef Gün Sayısı (1-7)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = onDismiss) { Text("İptal") }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            val target = targetDaysStr.toLongOrNull() ?: 7L
+                            if (title.isNotBlank()) {
+                                onConfirm(title, frequency, target)
+                                onDismiss()
+                            }
+                        },
+                        enabled = title.isNotBlank()
+                    ) {
+                        Text("Oluştur")
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun AddGoalDialog(
+    onDismiss: () -> Unit,
+    onConfirm: (title: String, desc: String, targetDate: String, category: String) -> Unit
+) {
+    var title by remember { mutableStateOf("") }
+    var description by remember { mutableStateOf("") }
+    var targetDate by remember { mutableStateOf(SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())) }
+    var category by remember { mutableStateOf("Kişisel") }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            shape = RoundedCornerShape(20.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            modifier = Modifier.fillMaxWidth().padding(16.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(20.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text(
+                    text = "Yeni Büyük Hedef Belirle",
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                OutlinedTextField(
+                    value = title,
+                    onValueChange = { title = it },
+                    label = { Text("Hedef Başlığı * (ör. B1 İngilizce Seviyesi)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("Detaylar & Başarı Kriterleri") },
+                    modifier = Modifier.fillMaxWidth(),
+                    maxLines = 3
+                )
+
+                OutlinedTextField(
+                    value = targetDate,
+                    onValueChange = { targetDate = it },
+                    label = { Text("Hedef Bitiş Tarihi (YYYY-MM-DD)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                OutlinedTextField(
+                    value = category,
+                    onValueChange = { category = it },
+                    label = { Text("Kategori (Kariyer, Sağlık, Finans, Eğitim)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                    TextButton(onClick = onDismiss) { Text("İptal") }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Button(
+                        onClick = {
+                            if (title.isNotBlank()) {
+                                onConfirm(title, description, targetDate, category)
+                                onDismiss()
+                            }
+                        },
+                        enabled = title.isNotBlank()
+                    ) {
+                        Text("Kaydet")
+                    }
+                }
+            }
+        }
+    }
+}

@@ -32,6 +32,11 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.SmartToy
+import android.graphics.BitmapFactory
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.compose.material.icons.filled.AddPhotoAlternate
+import androidx.compose.material.icons.filled.VolumeUp
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -77,8 +82,27 @@ fun AiChatScreen(
     val isGenerating by viewModel.isAiGenerating.collectAsState()
     val extractedTask by viewModel.extractedTask.collectAsState()
 
+    val context = LocalContext.current
     var inputText by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
+
+    // Photo picker for multimodal document & image analysis
+    val photoPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri != null) {
+            try {
+                val inputStream = context.contentResolver.openInputStream(uri)
+                val bitmap = BitmapFactory.decodeStream(inputStream)
+                if (bitmap != null) {
+                    viewModel.analyzeDocumentBitmap(bitmap, inputText)
+                    inputText = ""
+                }
+            } catch (e: Exception) {
+                // handle error
+            }
+        }
+    }
 
     // Speech to text launcher
     val speechLauncher = rememberLauncherForActivityResult(
@@ -159,9 +183,10 @@ fun AiChatScreen(
             }
         }
 
-        // Extracted Task Popup
-        AnimatedVisibility(visible = extractedTask != null) {
-            extractedTask?.let { task ->
+        // Autonomous Agent Action Proposal Card (Multi-Action Confirmation)
+        val actionProposal by viewModel.actionProposal.collectAsState()
+        AnimatedVisibility(visible = actionProposal != null) {
+            actionProposal?.let { proposal ->
                 Card(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -178,24 +203,24 @@ fun AiChatScreen(
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Icon(
                                     imageVector = Icons.Default.AutoAwesome,
-                                    contentDescription = "Yeni Görev",
+                                    contentDescription = "Otonom AI Ajanı",
                                     tint = CyanAccent,
                                     modifier = Modifier.size(20.dp)
                                 )
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Text(
-                                    text = "Yeni Görev / Hatırlatıcı Algılandı",
+                                    text = "🤖 Otonom AI Ajanı • Onay Talebi",
                                     style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                                     color = CyanAccent
                                 )
                             }
                             IconButton(
-                                onClick = { viewModel.clearExtractedTask() },
+                                onClick = { viewModel.dismissActionProposal() },
                                 modifier = Modifier.size(24.dp)
                             ) {
                                 Icon(
                                     imageVector = Icons.Default.Close,
-                                    contentDescription = "Kapat",
+                                    contentDescription = "Reddet",
                                     tint = Color.White.copy(alpha = 0.7f)
                                 )
                             }
@@ -203,36 +228,52 @@ fun AiChatScreen(
 
                         Spacer(modifier = Modifier.height(6.dp))
                         Text(
-                            text = "\"${task.title}\"",
+                            text = when (proposal.actionType) {
+                                "CREATE_TRANSACTION" -> "💰 Finans Kaydı: ${proposal.title} (₺${proposal.amount})"
+                                "CREATE_HABIT" -> "🔥 Yeni Alışkanlık: ${proposal.title}"
+                                else -> "📋 Görev & Hatırlatıcı: ${proposal.title}"
+                            },
                             style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
                             color = Color.White
                         )
-                        if (task.dueDate.isNotBlank() || task.dueTime.isNotBlank()) {
+                        if (proposal.details.isNotBlank()) {
                             Text(
-                                text = "Tarih: ${task.dueDate} ${task.dueTime} | Kategori: ${task.category}",
+                                text = proposal.details,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = Color.White.copy(alpha = 0.8f)
                             )
                         }
 
                         Spacer(modifier = Modifier.height(10.dp))
-                        Button(
-                            onClick = { viewModel.confirmExtractedTask(task) },
-                            colors = ButtonDefaults.buttonColors(containerColor = CyanAccent),
-                            shape = RoundedCornerShape(10.dp),
-                            modifier = Modifier.fillMaxWidth()
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Icon(
-                                imageVector = Icons.Default.Check,
-                                contentDescription = "Onayla",
-                                tint = NavyDark
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "Görevlerime Kaydet",
-                                color = NavyDark,
-                                fontWeight = FontWeight.Bold
-                            )
+                            androidx.compose.material3.OutlinedButton(
+                                onClick = { viewModel.dismissActionProposal() },
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text("İptal Et", color = Color.White.copy(alpha = 0.8f))
+                            }
+                            Button(
+                                onClick = { viewModel.executeActionProposal(proposal) },
+                                colors = ButtonDefaults.buttonColors(containerColor = CyanAccent),
+                                shape = RoundedCornerShape(10.dp),
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Check,
+                                    contentDescription = "Yürüt",
+                                    tint = NavyDark
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Onayla & Yürüt",
+                                    color = NavyDark,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
                         }
                     }
                 }
@@ -294,7 +335,10 @@ fun AiChatScreen(
             }
 
             items(chatMessages) { message ->
-                ChatMessageBubble(message = message)
+                ChatMessageBubble(
+                    message = message,
+                    onSpeak = { text -> viewModel.speakText(text) }
+                )
             }
 
             if (streamingText.isNotBlank()) {
@@ -382,6 +426,21 @@ fun AiChatScreen(
             ) {
                 IconButton(
                     onClick = {
+                        photoPickerLauncher.launch(
+                            PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                        )
+                    },
+                    modifier = Modifier.size(44.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AddPhotoAlternate,
+                        contentDescription = "Belge veya Görsel Yükle",
+                        tint = CyanAccent
+                    )
+                }
+
+                IconButton(
+                    onClick = {
                         val intent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                             putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                             putExtra(RecognizerIntent.EXTRA_LANGUAGE, "tr-TR")
@@ -450,7 +509,8 @@ fun AiChatScreen(
 @Composable
 private fun ChatMessageBubble(
     message: ChatMessage,
-    isStreaming: Boolean = false
+    isStreaming: Boolean = false,
+    onSpeak: (String) -> Unit = {}
 ) {
     val isUser = message.role == "user"
 
@@ -496,6 +556,26 @@ private fun ChatMessageBubble(
                     style = MaterialTheme.typography.bodyMedium,
                     color = if (isUser) NavyDark else Color.White
                 )
+
+                if (!isUser && !isStreaming && message.content.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.End
+                    ) {
+                        IconButton(
+                            onClick = { onSpeak(message.content) },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.VolumeUp,
+                                contentDescription = "Seslendir",
+                                tint = CyanAccent,
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+                }
             }
         }
     }
